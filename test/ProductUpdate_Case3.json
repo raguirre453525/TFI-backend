@@ -1,0 +1,8 @@
+{
+  "sku": "SKU-1001", 
+  "internalCode": "INT-2102",
+  "name": "",
+  "description": "Invalid product update.",
+  "currentUnitPrice": 10,
+  "stockQuantity": 1
+}

@@ -1,0 +1,10 @@
+{
+  "sku": "SKU-1004",
+  "internalCode": "INT-2006",
+  "name": "Smartwatch",
+  "description": "Fitness tracking smartwatch.",
+  "currentUnitPrice": 99.99,
+  "stockQuantity": -5
+}
+			 
+

@@ -1,0 +1,21 @@
+{
+  "shippingAddress": "123 Main St, Springfield",
+  "billingAddress": "123 Main St, Springfield",
+  "customerId": "", //Completar
+  "orderItems": [
+    {
+      "productId": "", //Completar
+      "quantity": 2,
+      "name": "Wireless Mouse",
+      "description": "Ergonomic wireless mouse",
+      "unitPrice": 25.99
+    },
+    {
+      "productId": "", //Completar
+      "quantity": 1,
+      "name": "Mechanical Keyboard",
+      "description": "RGB mechanical keyboard",
+      "unitPrice": 79.50
+    }
+  ]
+}

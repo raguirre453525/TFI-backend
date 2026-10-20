@@ -1,0 +1,44 @@
+name: CI Backend
+
+on:
+  push:
+    branches:
+      - development
+      - main
+  pull_request:
+    branches:
+      - development
+      - main
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  PROJECT_PATH: "Dsw2025Tpi.Api/Dsw2025Tpi.Api.csproj"
+
+jobs:
+  validar:
+    name: Validar backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obtener el código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restaurar paquetes
+        run: dotnet restore "$PROJECT_PATH"
+
+      - name: Limpiar compilación
+        run: dotnet clean "$PROJECT_PATH" --configuration Release
+
+      - name: Compilar backend
+        run: >
+          dotnet build "$PROJECT_PATH"
+          --configuration Release
+          --no-restore

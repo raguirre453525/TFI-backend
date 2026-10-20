@@ -49,6 +49,7 @@ valores públicos: no incluye clave JWT ni credenciales administrativas.
 | `Jwt:Key` | `Jwt__Key` | Obligatoria; clave aleatoria y exclusiva del entorno, de al menos 32 bytes UTF-8 |
 | `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpireInMinutes` | `Jwt__Issuer`, `Jwt__Audience`, `Jwt__ExpireInMinutes` | Valores públicos predeterminados en `appsettings.json` |
 | `ConnectionStrings:Dsw2025TpiEntities` | `ConnectionStrings__Dsw2025TpiEntities` | Reemplazar la conexión LocalDB cuando corresponda |
+| `Swagger:Enabled` | `Swagger__Enabled` | `true` habilita la interfaz y OpenAPI fuera de `Development`; ausente o `false` conserva su deshabilitación en esos entornos |
 | `BootstrapAdmin:Email` | `BootstrapAdmin__Email` | Correo del administrador inicial, opcional |
 | `BootstrapAdmin:UserName` | `BootstrapAdmin__UserName` | Nombre de usuario del administrador inicial |
 | `BootstrapAdmin:Password` | `BootstrapAdmin__Password` | Contraseña del administrador inicial, nunca versionada |
@@ -107,12 +108,41 @@ dotnet run --project .\Dsw2025Tpi.Api\Dsw2025Tpi.Api.csproj --launch-profile htt
 | Swagger | `https://localhost:7138/swagger` |
 | Comprobación básica | `https://localhost:7138/healthcheck` |
 
-Swagger se habilita únicamente en `Development`; ambos perfiles locales usan
-ese entorno. El healthcheck no comprueba SQL Server. Las rutas principales son
+Swagger está habilitado por defecto en `Development`; ambos perfiles locales usan
+ese entorno. Fuera de él, requiere `Swagger__Enabled=true`. El healthcheck no comprueba SQL Server. Las rutas principales son
 `/api/auth`, `/api/products` y `/api/orders`.
 
 Para conectar el frontend, usar `http://localhost:5173`: es el origen exacto
 permitido por CORS. `127.0.0.1` u otro puerto no son equivalentes.
+
+## Swagger fuera de Development (TP3-06)
+
+La habilitación es explícita: `Production` y otros entornos no exponen Swagger
+salvo que se configure `Swagger__Enabled=true`. En `Development` se conserva el
+comportamiento anterior, independientemente de esa opción. La configuración no
+modifica la autenticación JWT ni los permisos de los endpoints; habilita la
+documentación y su interfaz, que permiten conocer las rutas de la API.
+
+Después de configurar la clave JWT y una base con el esquema aplicado, ejecutar
+en una terminal de pruebas:
+
+```powershell
+$env:DOTNET_ENVIRONMENT = 'Production'
+$env:ASPNETCORE_ENVIRONMENT = 'Production'
+$env:Swagger__Enabled = 'true'
+dotnet run --project .\Dsw2025Tpi.Api\Dsw2025Tpi.Api.csproj --no-launch-profile --urls https://localhost:7138
+```
+
+Comprobar `https://localhost:7138/swagger/index.html` y
+`https://localhost:7138/swagger/v1/swagger.json`; ambos deben responder HTTP 200.
+`/api/orders` sin token debe seguir respondiendo HTTP 401. Reiniciar con
+`Swagger__Enabled=false` debe devolver HTTP 404 en ambas rutas de Swagger.
+Las variables se aplican solo a esa terminal y sus procesos hijos; cerrarla al
+terminar evita conservar la configuración de la prueba.
+
+En Azure deberá configurarse la misma variable y comprobarse la interfaz, el
+documento y una petición desde el dominio público. Esa comprobación requiere un
+despliegue disponible y no queda acreditada por las pruebas locales.
 
 ## Verificación y limitaciones
 
@@ -121,6 +151,23 @@ Después de compilar en Debug:
 ```powershell
 powershell -NoProfile -File .\test\Check-StartupConfiguration.ps1
 ```
+
+Para comprobar Swagger mediante peticiones HTTP reales en Windows con LocalDB,
+generar el SQL de las migraciones y ejecutar:
+
+```powershell
+$schema = Join-Path ([System.IO.Path]::GetTempPath()) ('swagger-schema-' + [Guid]::NewGuid().ToString('N') + '.sql')
+dotnet ef migrations script --project .\Dsw2025Tpi.Data\Dsw2025Tpi.Data.csproj --startup-project .\Dsw2025Tpi.Api\Dsw2025Tpi.Api.csproj --no-build --output $schema
+powershell -NoProfile -File .\test\Check-SwaggerConfiguration.ps1 -MigrationScript $schema
+```
+
+El script crea y elimina exclusivamente una base de prueba con nombre aleatorio
+`Tp3SwaggerCheck_*`, sin usar la base de la aplicación. Prueba Development por
+defecto, Production por defecto, Production habilitado y Production deshabilitado.
+En cada caso verifica la interfaz, OpenAPI, el healthcheck y el rechazo de pedidos
+sin token. Usa configuración JWT aleatoria, no crea un administrador y aísla los
+User Secrets del usuario. Requiere la API compilada, SQL Server LocalDB disponible
+y permiso para crear y eliminar esa base temporal. No valida acceso público en Azure.
 
 - La solución no contiene proyectos de pruebas: `dotnet test` no ejecuta pruebas
   funcionales. Los JSON de `test/` son ejemplos manuales y algunos contienen comentarios.

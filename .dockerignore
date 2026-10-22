@@ -1,0 +1,11 @@
+.git
+.gitignore
+.gitattributes
+.vs/
+**/bin/
+**/obj/
+**/*.user
+.env
+.env.*
+test/
+*.md

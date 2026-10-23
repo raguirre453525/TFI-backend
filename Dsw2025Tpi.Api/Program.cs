@@ -163,6 +163,9 @@ public class Program
         {
             var services = scope.ServiceProvider;
 
+            var context = services.GetRequiredService<Dsw2025TpiContext>();
+            await context.Database.MigrateAsync();
+
             var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
             var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
 

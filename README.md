@@ -33,7 +33,7 @@ test/                         Ejemplos manuales y comprobación de arranque
   no garantiza que esté instalado el runtime requerido.
 - SQL Server Express LocalDB en Windows, o una instancia accesible de SQL Server
   con la conexión configurada externamente.
-- `dotnet-ef` 9.0.7 para aplicar las migraciones.
+- `dotnet-ef` 9.0.7 solo para administrar las migraciones manualmente.
 - Certificado HTTPS de desarrollo confiable para utilizar el frontend.
 
 Ejecutar los siguientes comandos en PowerShell **desde la raíz de este repositorio**.
@@ -77,8 +77,10 @@ La configuración incompleta detiene el arranque. La creación solo se intenta s
 el correo no existe; no modifica contraseñas ni roles de cuentas existentes.
 Retirar estas opciones después de crear el administrador.
 
-El arranque crea los roles `ADMIN` y `USER` si faltan. Por ello, incluso sin
-administrador inicial, necesita una base disponible y con el esquema aplicado.
+El arranque aplica las migraciones pendientes antes de consultar o crear los
+roles `ADMIN` y `USER` y el administrador opcional. Usa la conexión configurada
+en `Dsw2025TpiEntities`, dentro del mismo scope de inicialización. La base debe
+estar disponible y la cuenta de conexión debe tener permisos para aplicar el esquema.
 
 ## 2. Compilar, preparar la base y ejecutar
 
@@ -88,16 +90,24 @@ dotnet build .\Dsw2025Tpi.sln --configuration Debug
 dotnet test .\Dsw2025Tpi.sln --configuration Debug --no-build
 ```
 
-Si `dotnet-ef` no está instalado, instalarlo con
+Solo para la administración manual, si `dotnet-ef` no está instalado, instalarlo con
 `dotnet tool install --global dotnet-ef --version 9.0.7`. Si ya existe otra versión,
 revisar su compatibilidad antes de modificarla.
 
-Las migraciones deben aplicarse **explícitamente**: el arranque no ejecuta
-`Database.Migrate()`. Revisar las migraciones antes de usar una base compartida.
+El arranque espera a que termine `Database.MigrateAsync()` antes de inicializar
+roles y administrador. La migración existente `20251201020512_UnificacionFinal`
+crea las tablas necesarias, incluidas `Roles`, `Usuarios` y `Products`.
+Revisar las migraciones antes de desplegar contra una base compartida. También
+es posible aplicarlas manualmente antes de iniciar la API:
+
+```powershell
+dotnet ef database update --project .\Dsw2025Tpi.Data\Dsw2025Tpi.Data.csproj --startup-project .\Dsw2025Tpi.Api\Dsw2025Tpi.Api.csproj
+```
+
+Para ejecutar localmente:
 
 ```powershell
 dotnet dev-certs https --trust
-dotnet ef database update --project .\Dsw2025Tpi.Data\Dsw2025Tpi.Data.csproj --startup-project .\Dsw2025Tpi.Api\Dsw2025Tpi.Api.csproj
 dotnet run --project .\Dsw2025Tpi.Api\Dsw2025Tpi.Api.csproj --launch-profile https
 ```
 
@@ -123,8 +133,8 @@ comportamiento anterior, independientemente de esa opción. La configuración no
 modifica la autenticación JWT ni los permisos de los endpoints; habilita la
 documentación y su interfaz, que permiten conocer las rutas de la API.
 
-Después de configurar la clave JWT y una base con el esquema aplicado, ejecutar
-en una terminal de pruebas:
+Después de configurar la clave JWT y una conexión de base de datos disponible,
+ejecutar en una terminal de pruebas; el arranque aplicará las migraciones pendientes:
 
 ```powershell
 $env:DOTNET_ENVIRONMENT = 'Production'
@@ -151,6 +161,16 @@ Después de compilar en Debug:
 ```powershell
 powershell -NoProfile -File .\test\Check-StartupConfiguration.ps1
 ```
+
+Con Python 3, comprobar la estructura del arranque sin ejecutar la API ni acceder
+a una base de datos:
+
+```powershell
+python -B .\test\test_startup_migrations.py
+```
+
+Estas tres comprobaciones validan el orden esperado, la ausencia de llamadas
+duplicadas y la migración existente; no prueban la aplicación del esquema en Azure.
 
 Para comprobar Swagger mediante peticiones HTTP reales en Windows con LocalDB,
 generar el SQL de las migraciones y ejecutar:

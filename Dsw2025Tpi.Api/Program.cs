@@ -164,7 +164,13 @@ public class Program
             var services = scope.ServiceProvider;
 
             var context = services.GetRequiredService<Dsw2025TpiContext>();
-            await context.Database.MigrateAsync();
+            // En Testing (WebApplicationFactory + SQLite) el esquema se crea con
+            // EnsureCreated desde el factory: Migrate aplicaria migraciones de
+            // SQL Server desactualizadas respecto al modelo actual.
+            if (!app.Environment.IsEnvironment("Testing"))
+            {
+                await context.Database.MigrateAsync();
+            }
 
             var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
             var userManager = services.GetRequiredService<UserManager<IdentityUser>>();

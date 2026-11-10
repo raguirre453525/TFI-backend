@@ -33,6 +33,10 @@ public class OrdersController : ControllerBase
         {
             return BadRequest(ae.Message);
         }
+        catch (CustomerNotFoundException ae)
+        {
+            return NotFound(ae.Message);
+        }
         catch (Exception)
         {
             return StatusCode(500, "Ocurrió un error inesperado");

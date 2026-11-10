@@ -31,16 +31,7 @@ public class OrdersManagementService
         var customer = await _repository.GetById<Customer>(request.CustomerId);
 
         if (customer is null)
-        {
-            customer = new Customer
-            {
-                Id = request.CustomerId,
-                IdentityUserId = request.CustomerId.ToString(),
-                Name = "Usuario Nuevo",
-                Email = "pendiente@actualizar.com"
-            };
-            await _repository.Add(customer);
-        }
+            throw new CustomerNotFoundException($"Cliente con ID {request.CustomerId} no encontrado.");
 
         // --- 3. Validación de Stock y Preparación (SIN GUARDAR AÚN) ---
         // Usamos una lista temporal para guardar los productos y sus cantidades validadas

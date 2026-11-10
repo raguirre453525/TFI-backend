@@ -26,7 +26,7 @@ public class ProductsManagementService
 
         if(request.CurrentUnitPrice <= 0) throw new ArgumentException("El Precio no puede ser menor o igual a 0");
 
-        if(request.StockQuantity < 0) throw new ArgumentException("El stock no puede ser menor a 0");
+        if(request.StockQuantity <= 0) throw new ArgumentException("El stock no puede ser menor o igual a 0");
 
         var exist = await _repository.First<Product>(p => p.Sku == request.Sku);
         if (exist != null) throw new ArgumentException($"Ya existe un producto con el Sku: {request.Sku}");
@@ -66,10 +66,16 @@ public class ProductsManagementService
             _ => null   // all
         };
 
-        // 2) Filtrar desde la base
+        // 2) Filtrar desde la base. Expresión traducible a SQL Server y evaluable
+        // en memoria: solo ToLower/Contains/comparaciones sobre parámetros
+        // (sin ToLowerInvariant ni EF.Functions) y gate isActive en todas las ramas.
+        var loweredSearch = filter.Search?.Trim().ToLower();
         var query = await _repository.GetFiltered<Product>(p =>
             (isActive == null || p.IsActive == isActive) &&
-            (string.IsNullOrWhiteSpace(filter.Search) || p.Name.Contains(filter.Search)) || p.Sku.Contains(filter.Search)
+            (string.IsNullOrWhiteSpace(filter.Search) ||
+                p.Name.ToLower().Contains(loweredSearch!) ||
+                p.Sku.ToLower().Contains(loweredSearch!) ||
+                (p.InternalCode != null && p.InternalCode.ToLower().Contains(loweredSearch!)))
         );
 
         if (query == null || !query.Any())

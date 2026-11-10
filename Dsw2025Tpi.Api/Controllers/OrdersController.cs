@@ -31,7 +31,7 @@ public class OrdersController : ControllerBase
         }
         catch (ArgumentException ae)
         {
-            return BadRequest(ae.Message);
+            return BadRequest(new { message = ae.Message });
         }
         catch (CustomerNotFoundException ae)
         {

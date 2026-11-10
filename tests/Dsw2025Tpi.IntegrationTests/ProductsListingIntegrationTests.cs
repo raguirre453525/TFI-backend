@@ -24,18 +24,23 @@ public class ProductsListingIntegrationTests
     [Fact]
     public async Task GetProducts_PublicEndpoint_ReturnsOkWithPaginatedJsonStructure()
     {
-        // Arrange - ensure at least one active product exists via seed if needed
-        // Use unique SKU to guarantee existence without relying solely on TP7 data
-        var sku = IntegrationTestAuthHelper.GenerateUniqueSku("TP4-T7");
-        await DatabaseHelper.SeedProductAsync(_factory, sku, $"TP4-T7 Prod {Guid.NewGuid():N}"[..16], $"IC-T7-{Guid.NewGuid():N}"[..10], 120m, 5, true);
+        // Arrange - seed product with unique SKU/prefix to isolate from other tests sharing the same SQLite in-memory DB
+        // CustomWebApplicationFactory uses a single SqliteConnection (Cache=Shared) shared across all [Collection("IntegrationTests")] tests.
+        // Isolation is achieved via unique SKUs/prefixes, not via EnsureDeleted (which would wipe TP7 data needed by pre-existing ProductListingTests).
+        var uniquePrefix = $"T7{Guid.NewGuid():N}"[..6].ToUpperInvariant();
+        var sku = IntegrationTestAuthHelper.GenerateUniqueSku(uniquePrefix);
+        var name = $"T7 Pub {uniquePrefix} {Guid.NewGuid():N}"[..18];
+        var ic = $"{uniquePrefix}-IC";
+        await DatabaseHelper.SeedProductAsync(_factory, sku, name, ic, 120m, 5, true);
 
         var client = _factory.CreateClient();
 
-        // Act
+        // Act - unfiltered public listing (spec: must find product without filters)
         var response = await client.GetAsync("/api/products");
 
-        // Assert
+        // Assert - public endpoint structure
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
         var page = await response.Content.ReadFromJsonAsync<ProductModel.ResponsePagination>();
         page.Should().NotBeNull();
         page!.Items.Should().NotBeNullOrEmpty();
@@ -44,8 +49,18 @@ public class ProductsListingIntegrationTests
         page.PageSize.Should().BeGreaterThan(0);
         page.TotalPages.Should().BeGreaterThan(0);
         page.Items.Should().OnlyContain(p => p.IsActive, "public endpoint must return only active products");
-        // Verify our seeded product is present
+        // Verify seeded product is present in unfiltered list (order-independent, pagination returns all when no PageSize)
         page.Items.Should().Contain(p => p.Sku == sku);
+
+        // Additional isolation check: filtered search must return exclusively the seeded product (reproducible regardless of other tests' data volume)
+        var responseFiltered = await client.GetAsync($"/api/products?search={Uri.EscapeDataString(sku)}");
+        responseFiltered.StatusCode.Should().Be(HttpStatusCode.OK);
+        responseFiltered.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+        var pageFiltered = await responseFiltered.Content.ReadFromJsonAsync<ProductModel.ResponsePagination>();
+        pageFiltered.Should().NotBeNull();
+        pageFiltered!.Items.Should().ContainSingle().Which.Sku.Should().Be(sku);
+        pageFiltered.TotalCount.Should().Be(1);
+        pageFiltered.Items[0].IsActive.Should().BeTrue();
     }
 
     [Fact]
@@ -92,16 +107,18 @@ public class ProductsListingIntegrationTests
         page2.TotalCount.Should().Be(3);
         page2.PageNumber.Should().Be(2);
 
-        // Act - search by specific name substring (Alpha) => single match
-        var responseAlpha = await client.GetAsync($"/api/products?search=Alpha%20Mouse&PageNumber=1&PageSize=10");
-        // The search param may not support encoded space fully via manual, try filtering by uniquePrefix+Alpha
-        // Fallback: search by Alpha
-        if (responseAlpha.StatusCode == HttpStatusCode.NoContent)
-        {
-            // try alternative search without space
-            responseAlpha = await client.GetAsync($"/api/products?search={uniquePrefix}%20Alpha");
-        }
-        // Ensure at least one result contains name1 - we test via sku search which is more reliable
+        // Act - search by specific name substring using unique term to avoid collisions with other tests
+        var searchAlpha = $"{uniquePrefix} Alpha";
+        var responseAlpha = await client.GetAsync($"/api/products?search={Uri.EscapeDataString(searchAlpha)}&PageNumber=1&PageSize=10");
+        responseAlpha.StatusCode.Should().Be(HttpStatusCode.OK);
+        var pageAlpha = await responseAlpha.Content.ReadFromJsonAsync<ProductModel.ResponsePagination>();
+        pageAlpha.Should().NotBeNull();
+        pageAlpha!.Items.Should().ContainSingle("search by unique name term must return exclusively the expected product");
+        pageAlpha.Items[0].Name.Should().Be(name1);
+        pageAlpha.Items[0].Sku.Should().Be(sku1);
+        pageAlpha.TotalCount.Should().Be(1);
+
+        // Act - search by SKU (reliable)
         var responseBySku = await client.GetAsync($"/api/products?search={sku1}");
         responseBySku.StatusCode.Should().Be(HttpStatusCode.OK);
         var pageSku = await responseBySku.Content.ReadFromJsonAsync<ProductModel.ResponsePagination>();

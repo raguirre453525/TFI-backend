@@ -145,11 +145,26 @@ public class OrdersControllerIntegrationTests
         // Act
         var response = await client.PostAsJsonAsync("/api/orders", orderRequest);
 
-        // Assert - 400 with Stock insuficiente message (case-insensitive)
+        // Assert - 400 with JSON error body (application/json)
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var content = await response.Content.ReadAsStringAsync();
-        content.Should().NotBeNullOrWhiteSpace();
-        content.ToLowerInvariant().Should().Contain("stock insuficiente");
+        response.Content.Headers.ContentType.Should().NotBeNull();
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+
+        var bodyString = await response.Content.ReadAsStringAsync();
+        bodyString.Should().NotBeNullOrWhiteSpace();
+
+        // Verify body is valid JSON
+        JsonDocument jsonDoc = null!;
+        var actParse = () => jsonDoc = JsonDocument.Parse(bodyString);
+        actParse.Should().NotThrow("error body must be valid JSON");
+
+        // Extract message property (camelCase 'message' expected from BadRequest(new { message = ...}))
+        var hasMessage = jsonDoc.RootElement.TryGetProperty("message", out var msgProp) ||
+                         jsonDoc.RootElement.TryGetProperty("Message", out msgProp);
+        hasMessage.Should().BeTrue("JSON error must contain 'message' property");
+        var message = msgProp.GetString();
+        message.Should().NotBeNullOrWhiteSpace();
+        message!.ToLowerInvariant().Should().Contain("stock insuficiente");
 
         // Verify no order created
         using var scope = _factory.Services.CreateScope();

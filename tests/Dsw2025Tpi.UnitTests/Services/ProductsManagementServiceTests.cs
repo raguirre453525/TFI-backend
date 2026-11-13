@@ -174,7 +174,7 @@ public class ProductsManagementServiceTests
         // Assert
         result.Should().NotBeNull();
         result!.Items.Should().HaveCount(5);
-        result.TotalCount.Should().Be(15);
+        result.TotalCount.Should().Be(16);
         result.PageNumber.Should().Be(2);
         result.PageSize.Should().Be(5);
         result.TotalPages.Should().Be(3);

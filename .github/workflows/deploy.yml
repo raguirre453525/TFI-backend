@@ -16,12 +16,52 @@ concurrency:
 env:
   DOTNET_VERSION: "8.0.x"
   PROJECT_PATH: "Dsw2025Tpi.Api/Dsw2025Tpi.Api.csproj"
+  SOLUTION_PATH: "Dsw2025Tpi.sln"
   DOCKERHUB_USERNAME: claudioj02
   IMAGE_NAME: tfi-backend
 
 jobs:
+  pruebas:
+    name: Pruebas automatizadas
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obtener el código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restaurar paquetes
+        run: dotnet restore "$SOLUTION_PATH"
+
+      - name: Compilar solución
+        run: >
+          dotnet build "$SOLUTION_PATH"
+          --configuration Release
+          --no-restore
+
+      - name: Ejecutar pruebas unitarias y de integración
+        run: >
+          dotnet test "$SOLUTION_PATH"
+          --configuration Release
+          --no-build
+          --logger trx
+          --logger "console;verbosity=normal"
+          --results-directory TestResults
+
+      - name: Publicar resultados de las pruebas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-pruebas
+          path: TestResults
+
   validar:
     name: Validar backend
+    needs: pruebas
     runs-on: ubuntu-latest
 
     steps:
